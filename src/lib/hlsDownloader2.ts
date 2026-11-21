@@ -212,7 +212,9 @@ const parseM3U8Playlist = async (
         );
         const video = await parseM3U8Playlist(bestQualityUrl, headers, signal);
         // Audio in its own playlist is not inside the video segments; without
-        // it the saved file is silent. Prefer the default rendition.
+        // it the saved file is silent. Prefer a Hindi rendition when one is
+        // available, so offline downloads match the Hindi audio used online;
+        // otherwise fall back to the default rendition.
         const renditions = bestAudioGroup
           ? lines.filter(
               (candidate: string) =>
@@ -221,7 +223,15 @@ const parseM3U8Playlist = async (
                 tagAttribute(candidate, 'GROUP-ID') === bestAudioGroup,
             )
           : [];
+        const isHindiRendition = (candidate: string): boolean => {
+          const language = (tagAttribute(candidate, 'LANGUAGE') || '').toLowerCase();
+          const name = (tagAttribute(candidate, 'NAME') || '').toLowerCase();
+          return (
+            ['hin', 'hi', 'hindi'].includes(language) || name.includes('hindi')
+          );
+        };
         const rendition =
+          renditions.find(isHindiRendition) ||
           renditions.find(
             (candidate: string) => tagAttribute(candidate, 'DEFAULT') === 'YES',
           ) ||
