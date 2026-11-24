@@ -12,9 +12,9 @@ export interface ProviderStatus {
 }
 
 /**
- * One chip per provider, so the user can see at a glance that every provider
- * was searched and which one has the title. Failed chips are tappable to
- * retry just that provider.
+ * One chip per provider, so the user can see at a glance that every ticked
+ * provider was searched and which one has the title. Failed chips are
+ * tappable to retry just that provider.
  */
 export const ProviderStatusStrip = ({
   statuses,
