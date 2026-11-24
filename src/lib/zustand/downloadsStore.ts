@@ -59,6 +59,8 @@ export interface DownloadItem {
   subtitles?: DownloadSubtitle[];
   server?: string;
   quality?: string;
+  /** HLS variant playlist URL to download instead of the best quality. */
+  preferredVariantUrl?: string;
   isSubtitle?: boolean;
   videoType?: string | null;
   sourceType: DownloadSourceType;
@@ -103,6 +105,7 @@ export type DownloadMediaInput = Pick<
   | 'provider'
   | 'server'
   | 'quality'
+  | 'preferredVariantUrl'
   | 'isSubtitle'
   | 'infoUrl'
   | 'sourceLink'
