@@ -25,19 +25,20 @@ const SETTLE_MS = 120;
 
 interface ReorderableProviderListProps {
   providers: ProviderExtension[];
-  selectedValue: string;
+  selectedValues: string[];
   primary: string;
   onSelect: (provider: ProviderExtension) => void;
 }
 
 /**
- * Provider rows for the phone drawer. Tap selects; hold a row, then drag it
- * up or down to change the order. The order is saved and used everywhere the
- * installed providers are listed.
+ * Provider rows for the phone drawer. Tap toggles the provider's tick (search
+ * runs over the ticked providers); hold a row, then drag it up or down to
+ * change the order. The order is saved and used everywhere the installed
+ * providers are listed.
  */
 const ReorderableProviderList = ({
   providers,
-  selectedValue,
+  selectedValues,
   primary,
   onSelect,
 }: ReorderableProviderListProps) => {
@@ -98,7 +99,7 @@ const ReorderableProviderList = ({
           item={item}
           index={index}
           count={order.length}
-          isSelected={item.value === selectedValue}
+          isSelected={selectedValues.includes(item.value)}
           primary={primary}
           rowHeight={rowHeight}
           dragFrom={dragFrom}
@@ -254,7 +255,7 @@ const ProviderRow = memo(
           style={[{paddingVertical: 2}, rowStyle]}
           accessibilityRole="button"
           accessibilityLabel={item.display_name}
-          accessibilityHint="Hold and drag to reorder"
+          accessibilityHint="Tap to tick for search. Hold and drag to reorder"
           accessibilityState={{selected: isSelected}}>
           <Animated.View
             style={[

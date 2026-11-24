@@ -1,9 +1,11 @@
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {View, Text, BackHandler, findNodeHandle} from 'react-native';
+import {View, Text, Pressable, BackHandler, findNodeHandle} from 'react-native';
 // The gesture handler ScrollView lets a held row take over from scrolling.
 import {ScrollView} from 'react-native-gesture-handler';
 import React, {useEffect} from 'react';
-import useContentStore from '../lib/zustand/contentStore';
+import useContentStore, {
+  getSearchProviderValues,
+} from '../lib/zustand/contentStore';
 import {MaterialIcons} from '@expo/vector-icons';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import {isTV} from '../lib/tv';
@@ -29,6 +31,24 @@ const ProviderDrawer = ({
   const provider = useContentStore(state => state.provider);
   const setProvider = useContentStore(state => state.setProvider);
   const installedProviders = useContentStore(state => state.installedProviders);
+  const selectedProviderValues = useContentStore(
+    state => state.selectedProviderValues,
+  );
+  const toggleSelectedProvider = useContentStore(
+    state => state.toggleSelectedProvider,
+  );
+  const selectAllProviders = useContentStore(
+    state => state.selectAllProviders,
+  );
+  // Ticked providers: the stored set, or every installed provider when the
+  // user has never ticked anything. Search runs only over these.
+  const effectiveSelectedValues = getSearchProviderValues(
+    installedProviders,
+    selectedProviderValues,
+  );
+  const allTicked =
+    installedProviders.length > 0 &&
+    effectiveSelectedValues.length === installedProviders.length;
   const hasSelectedProvider = installedProviders.some(
     item => item.value === provider.value,
   );
@@ -49,13 +69,23 @@ const ProviderDrawer = ({
   const handleSelectProvider = React.useCallback(
     (item: any) => {
       if (Date.now() - mountTimeRef.current < 350) return;
-      if (onSelectProvider) onSelectProvider(item);
-      else {
-        setProvider(item);
-        onClose();
+      // Tapping toggles the tick: search runs over the ticked providers.
+      // The drawer stays open so several providers can be ticked in a row.
+      const wasTicked = effectiveSelectedValues.includes(item.value);
+      toggleSelectedProvider(item.value);
+      // Ticking a provider also makes it the home screen's provider;
+      // unticking leaves the home provider alone.
+      if (!wasTicked) {
+        if (onSelectProvider) onSelectProvider(item);
+        else setProvider(item);
       }
     },
-    [setProvider, onClose, onSelectProvider],
+    [
+      toggleSelectedProvider,
+      effectiveSelectedValues,
+      setProvider,
+      onSelectProvider,
+    ],
   );
 
   useEffect(() => {
@@ -88,31 +118,54 @@ const ProviderDrawer = ({
         }}>
         <View>
           <Text className="text-white text-2xl font-bold">Select Provider</Text>
-          <Text className="text-gray-400 mt-1 text-sm">Content source</Text>
+          <Text className="text-gray-400 mt-1 text-sm">
+            Tick providers to include in search
+          </Text>
         </View>
-        {isTV ? (
-          <TVFocusable
-            ref={closeRef}
-            onLayout={() => setCloseNode(findNodeHandle(closeRef.current))}
-            nextFocusDown={firstProviderNode}
-            accessibilityRole="button"
-            accessibilityLabel="Close drawer"
-            hasTVPreferredFocus={false}
-            onPress={handleClose}
-            borderRadius={20}
-            focusScale={1.1}
-            focusBorderColor={focusBorderColor}
-            style={{
-              alignItems: 'center',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              borderRadius: 20,
-              height: 40,
-              justifyContent: 'center',
-              width: 40,
-            }}>
-            <MaterialIcons name="close" size={24} color="#FFFFFF" />
-          </TVFocusable>
-        ) : null}
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 16}}>
+          {!allTicked && (
+            <Pressable
+              onPress={selectAllProviders}
+              accessibilityRole="button"
+              accessibilityLabel="Select all providers">
+              <Text style={{color: primary, fontSize: 15, fontWeight: '700'}}>
+                Select all
+              </Text>
+            </Pressable>
+          )}
+          {isTV ? (
+            <TVFocusable
+              ref={closeRef}
+              onLayout={() => setCloseNode(findNodeHandle(closeRef.current))}
+              nextFocusDown={firstProviderNode}
+              accessibilityRole="button"
+              accessibilityLabel="Close drawer"
+              hasTVPreferredFocus={false}
+              onPress={handleClose}
+              borderRadius={20}
+              focusScale={1.1}
+              focusBorderColor={focusBorderColor}
+              style={{
+                alignItems: 'center',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                borderRadius: 20,
+                height: 40,
+                justifyContent: 'center',
+                width: 40,
+              }}>
+              <MaterialIcons name="close" size={24} color="#FFFFFF" />
+            </TVFocusable>
+          ) : (
+            <Pressable
+              onPress={handleClose}
+              accessibilityRole="button"
+              accessibilityLabel="Done">
+              <Text style={{color: primary, fontSize: 15, fontWeight: '700'}}>
+                Done
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <TVFocusGuide
@@ -128,10 +181,10 @@ const ProviderDrawer = ({
           {/* TV keeps a plain list: rows are picked with the remote. */}
           {isTV &&
             installedProviders.map((item, index) => {
-              const isSelected = provider.value === item.value;
-              // One preferred item only: the selected provider, else the first.
+              const isSelected = effectiveSelectedValues.includes(item.value);
+              // TV focus starts on the home provider, else the first row.
               const isPreferred = hasSelectedProvider
-                ? isSelected
+                ? provider.value === item.value
                 : index === 0;
 
               return (
@@ -190,7 +243,7 @@ const ProviderDrawer = ({
           {!isTV && (
             <ReorderableProviderList
               providers={installedProviders}
-              selectedValue={provider.value}
+              selectedValues={effectiveSelectedValues}
               primary={primary}
               onSelect={handleSelectProvider}
             />
