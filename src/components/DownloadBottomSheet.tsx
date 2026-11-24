@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import React, { useEffect, useRef } from 'react';
 import { Stream } from '../lib/providers/types';
+import {probeHlsStream, type HlsProbeResult} from '../lib/hlsDownloader2';
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetScrollView,
@@ -229,6 +230,57 @@ const DownloadBottomSheet = ({
     }
   }, [showModal]);
 
+  // Hindi badge + quality list: read each HLS server's master playlist once
+  // (a few KB, no segments) while the sheet is open. A failed probe just
+  // means "unknown" — the row falls back to today's behaviour.
+  const [streamProbes, setStreamProbes] = React.useState<
+    Record<string, HlsProbeResult>
+  >({});
+  useEffect(() => {
+    if (!showModal) {
+      return;
+    }
+    const hlsStreams = streams.filter(
+      stream =>
+        stream?.type === 'm3u8' ||
+        (typeof stream?.link === 'string' && stream.link.includes('.m3u8')),
+    );
+    if (hlsStreams.length === 0) {
+      return;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    Promise.all(
+      hlsStreams.map(async stream => {
+        try {
+          const probe = await probeHlsStream(
+            stream.link,
+            stream.headers || {},
+            controller.signal,
+          );
+          return [stream.link, probe] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then(entries => {
+      if (cancelled) {
+        return;
+      }
+      const next: Record<string, HlsProbeResult> = {};
+      for (const entry of entries) {
+        if (entry) {
+          next[entry[0]] = entry[1];
+        }
+      }
+      setStreamProbes(next);
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [showModal, data]);
+
   const renderVideoTab = () => {
     if (videoDownloaded) {
       return (
@@ -359,7 +411,9 @@ const DownloadBottomSheet = ({
       );
     }
 
-    return streams.map((item, index) => (
+    return streams.map((item, index) => {
+      const probe = streamProbes[item.link];
+      return (
       <SheetRow
         key={index}
         style={{
@@ -426,8 +480,9 @@ const DownloadBottomSheet = ({
 
             const hasQuality = Boolean(item.quality);
             const hasTags = tags.length > 0;
+            const hasHindiAudio = probe?.hasHindiAudio === true;
 
-            if (!hasQuality && !hasTags) {
+            if (!hasQuality && !hasTags && !hasHindiAudio) {
               return null;
             }
 
@@ -458,6 +513,24 @@ const DownloadBottomSheet = ({
                     </Text>
                   </View>
                 ) : null}
+                {hasHindiAudio ? (
+                  <View
+                    style={{
+                      backgroundColor: colors.primaryContainer,
+                      borderRadius: 8,
+                      paddingHorizontal: 7,
+                      paddingVertical: 2,
+                    }}>
+                    <Text
+                      style={{
+                        color: colors.onPrimaryContainer,
+                        fontSize: 11,
+                        fontWeight: '700',
+                      }}>
+                      Hindi
+                    </Text>
+                  </View>
+                ) : null}
                 {tags.map((t, tIdx) => (
                   <View
                     key={tIdx}
@@ -480,6 +553,49 @@ const DownloadBottomSheet = ({
               </View>
             );
           })()}
+          {probe && probe.variants.length > 1 ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 6,
+                marginTop: 6,
+              }}>
+              {probe.variants.map(variant => (
+                <SheetButton
+                  key={variant.url}
+                  accessibilityLabel={`Download in ${variant.label}`}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    onPressVideo({
+                      ...item,
+                      quality: variant.label,
+                      preferredVariantUrl: variant.url,
+                    });
+                    closeSheet();
+                  }}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: colors.surfaceContainerHighest,
+                    borderColor: colors.outlineVariant,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    justifyContent: 'center',
+                    paddingHorizontal: 9,
+                    paddingVertical: 4,
+                  }}>
+                  <Text
+                    style={{
+                      color: colors.onSurface,
+                      fontSize: 12,
+                      fontWeight: '700',
+                    }}>
+                    {variant.label}
+                  </Text>
+                </SheetButton>
+              ))}
+            </View>
+          ) : null}
         </SheetRowMain>
 
         {/* Action buttons */}
@@ -538,7 +654,8 @@ const DownloadBottomSheet = ({
           </SheetButton>
         </View>
       </SheetRow>
-    ));
+      );
+    });
   };
 
   const renderSubtitleTab = () => {
