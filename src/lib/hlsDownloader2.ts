@@ -53,6 +53,106 @@ const tagAttribute = (line: string, name: string): string | undefined => {
   return match ? (match[2] ?? match[1]) : undefined;
 };
 
+/** True when an `#EXT-X-MEDIA` audio line is a Hindi rendition. */
+export const isHindiAudioRendition = (line: string): boolean => {
+  const language = (tagAttribute(line, 'LANGUAGE') || '').toLowerCase();
+  const name = (tagAttribute(line, 'NAME') || '').toLowerCase();
+  return (
+    ['hin', 'hi', 'hindi'].includes(language) || name.includes('hindi')
+  );
+};
+
+export interface HlsVariant {
+  /** Resolved URL of the variant (media) playlist. */
+  url: string;
+  /** Video height in pixels, when the master playlist declares it. */
+  height?: number;
+  bandwidth: number;
+  /** Display label, e.g. "1080p", "480p", "360p". */
+  label: string;
+}
+
+export interface HlsProbeResult {
+  /** True when the URL is a master playlist with variant streams. */
+  isMaster: boolean;
+  /** True when any audio rendition of the master playlist is Hindi. */
+  hasHindiAudio: boolean;
+  /** Variant streams, one per height, highest first. Empty for media playlists. */
+  variants: HlsVariant[];
+}
+
+const PROBE_TIMEOUT_MS = 8000;
+
+/**
+ * Lightweight read of an HLS master playlist: no segments are fetched, so
+ * this never starts a download. Used to show a Hindi badge and the available
+ * qualities (360p/480p/720p/1080p...) before the user presses download.
+ * Throws when the playlist cannot be fetched; callers treat that as unknown.
+ */
+export const probeHlsStream = async (
+  url: string,
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
+): Promise<HlsProbeResult> => {
+  const response = await axios.get(url, {
+    headers: normalizeHeaders(headers),
+    timeout: PROBE_TIMEOUT_MS,
+    signal,
+  });
+  const content =
+    typeof response.data === 'string' ? response.data : String(response.data);
+  const lines = content.split('\n').map((line: string) => line.trim());
+
+  const hasHindiAudio = lines.some(
+    (line: string) =>
+      line.startsWith('#EXT-X-MEDIA:') &&
+      tagAttribute(line, 'TYPE') === 'AUDIO' &&
+      isHindiAudioRendition(line),
+  );
+
+  const found: HlsVariant[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.includes('#EXT-X-STREAM-INF')) continue;
+    const bandwidth = Number(tagAttribute(line, 'BANDWIDTH') || 0);
+    const resolution = tagAttribute(line, 'RESOLUTION') || '';
+    const height = Number(resolution.split('x')[1] || 0) || undefined;
+    let playlistUrl = '';
+    for (let j = i + 1; j < lines.length; j++) {
+      const candidate = lines[j];
+      if (candidate && !candidate.startsWith('#')) {
+        playlistUrl = candidate;
+        break;
+      }
+    }
+    if (!playlistUrl) continue;
+    found.push({
+      url: resolveUrl(playlistUrl, url),
+      height,
+      bandwidth,
+      label: height
+        ? `${height}p`
+        : bandwidth
+          ? `${Math.round(bandwidth / 1000)}k`
+          : 'Auto',
+    });
+  }
+  // One entry per height: keep the highest-bandwidth variant of each height.
+  const byHeight = new Map<string, HlsVariant>();
+  for (const variant of found) {
+    const key = variant.height ? String(variant.height) : variant.url;
+    const existing = byHeight.get(key);
+    if (!existing || variant.bandwidth > existing.bandwidth) {
+      byHeight.set(key, variant);
+    }
+  }
+  const variants = [...byHeight.values()].sort(
+    (a, b) => (b.height || 0) - (a.height || 0) || b.bandwidth - a.bandwidth,
+  );
+  return {isMaster: found.length > 0, hasHindiAudio, variants};
+};
+
+
 const MAX_SEGMENT_ATTEMPTS = 5;
 const SEGMENT_RETRY_BASE_MS = 1000;
 const MAX_SEGMENT_RETRY_MS = 16000;
@@ -136,6 +236,9 @@ const parseM3U8Playlist = async (
   url: string,
   headers: Record<string, string> = {},
   signal?: AbortSignal,
+  // When set, download this variant (e.g. a 360p/480p playlist) instead of
+  // the highest-bandwidth one. The Hindi audio preference still applies.
+  preferredVariantUrl?: string,
 ): Promise<M3U8Data> => {
   try {
     console.log('Fetching M3U8 playlist:', url);
@@ -169,9 +272,11 @@ const parseM3U8Playlist = async (
         'Detected master playlist, looking for best quality stream...',
       );
 
-      let bestQualityUrl: string | null = null;
-      let bestAudioGroup: string | undefined;
-      let highestBandwidth = 0;
+      const variants: {
+        url: string;
+        bandwidth: number;
+        audioGroup?: string;
+      }[] = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -193,15 +298,29 @@ const parseM3U8Playlist = async (
           }
 
           if (playlistUrl) {
-            const resolvedUrl = resolveUrl(playlistUrl, url);
-            if (bandwidth > highestBandwidth || !bestQualityUrl) {
-              highestBandwidth = bandwidth;
-              bestQualityUrl = resolvedUrl;
-              bestAudioGroup = tagAttribute(line, 'AUDIO');
-            }
+            variants.push({
+              url: resolveUrl(playlistUrl, url),
+              bandwidth,
+              audioGroup: tagAttribute(line, 'AUDIO'),
+            });
           }
         }
       }
+
+      // A caller-chosen quality (360p/480p/...) wins; otherwise, as before,
+      // the highest-bandwidth variant (first one on a tie).
+      const chosen =
+        (preferredVariantUrl &&
+          variants.find(variant => variant.url === preferredVariantUrl)) ||
+        variants.reduce(
+          (best, variant) =>
+            !best || variant.bandwidth > best.bandwidth ? variant : best,
+          undefined as (typeof variants)[number] | undefined,
+        );
+      const bestQualityUrl = chosen?.url ?? null;
+      const bestAudioGroup = chosen?.audioGroup;
+      const highestBandwidth = chosen?.bandwidth ?? 0;
+
 
       if (bestQualityUrl) {
         console.log(
@@ -223,15 +342,8 @@ const parseM3U8Playlist = async (
                 tagAttribute(candidate, 'GROUP-ID') === bestAudioGroup,
             )
           : [];
-        const isHindiRendition = (candidate: string): boolean => {
-          const language = (tagAttribute(candidate, 'LANGUAGE') || '').toLowerCase();
-          const name = (tagAttribute(candidate, 'NAME') || '').toLowerCase();
-          return (
-            ['hin', 'hi', 'hindi'].includes(language) || name.includes('hindi')
-          );
-        };
         const rendition =
-          renditions.find(isHindiRendition) ||
+          renditions.find(isHindiAudioRendition) ||
           renditions.find(
             (candidate: string) => tagAttribute(candidate, 'DEFAULT') === 'YES',
           ) ||
@@ -427,6 +539,7 @@ export const hlsDownloader2 = async ({
   onResumable,
   headers = {},
   connections = 4,
+  preferredVariantUrl,
 }: {
   videoUrl: string;
   downloadId: string;
@@ -441,6 +554,8 @@ export const hlsDownloader2 = async ({
   headers?: any;
   /** Segments downloaded at the same time. */
   connections?: number;
+  /** Variant playlist URL to download instead of the best quality. */
+  preferredVariantUrl?: string;
 }) => {
   if (activeDownloads.has(downloadId)) throw new Error('HLS download is already active');
   cancelledDownloads.delete(downloadId);
@@ -463,7 +578,12 @@ export const hlsDownloader2 = async ({
     console.log('Parsing M3U8 playlist...');
     const controller = new AbortController();
     playlistRequests.set(downloadId, controller);
-    const m3u8Data = await parseM3U8Playlist(videoUrl, headers, controller.signal);
+    const m3u8Data = await parseM3U8Playlist(
+      videoUrl,
+      headers,
+      controller.signal,
+      preferredVariantUrl,
+    );
     playlistRequests.delete(downloadId);
     assertRunning(downloadId);
 

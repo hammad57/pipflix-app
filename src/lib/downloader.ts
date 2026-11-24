@@ -38,6 +38,7 @@ export const downloadManager = async ({
   provider,
   server,
   quality,
+  preferredVariantUrl,
   isSubtitle,
   infoUrl,
   sourceLink,
@@ -62,6 +63,7 @@ export const downloadManager = async ({
   provider?: string;
   server?: string;
   quality?: string;
+  preferredVariantUrl?: string;
   isSubtitle?: boolean;
   infoUrl?: string;
   sourceLink?: string;
@@ -102,6 +104,7 @@ export const downloadManager = async ({
     provider,
     server,
     quality,
+    preferredVariantUrl,
     isSubtitle,
     infoUrl,
     sourceLink,
