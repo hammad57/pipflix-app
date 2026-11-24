@@ -16,6 +16,7 @@ export const hlsDownloadBackend: DownloadBackend = {
       tempDirectory: `${destination.stagingDirectory}/segments`,
       headers: record.headers,
       connections: settingsStorage.getDownloadConnections(),
+      preferredVariantUrl: record.preferredVariantUrl,
       onJobStarted: backendJobId =>
         useDownloadsStore.getState().updateDownload(record.id, {
           backendJobId,
