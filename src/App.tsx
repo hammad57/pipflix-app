@@ -28,6 +28,8 @@ import 'react-native-reanimated';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import WebView from './screens/WebView';
 import SearchResults from './screens/SearchResults';
+import CategoryResults from './screens/CategoryResults';
+import type {GenreProviderEntry} from './lib/search/getAllGenres';
 // import DisableProviders from './screens/settings/DisableProviders';
 import About, {checkForUpdate} from './screens/settings/About';
 import BootSplash from 'react-native-bootsplash';
@@ -150,6 +152,11 @@ export type SearchStackParamList = {
   };
   Info: {link: string; provider?: string; poster?: string};
   SearchResults: {filter: string; availableProviders?: string[]};
+  CategoryResults: {
+    title: string;
+    entries: GenreProviderEntry[];
+    searchQuery?: string;
+  };
 };
 
 export type WatchListStackParamList = {
@@ -386,6 +393,7 @@ function SearchStackScreen() {
       <SearchStack.Screen name="ScrollList" component={ScrollList} />
       <SearchStack.Screen name="Info" component={Info} />
       <SearchStack.Screen name="SearchResults" component={SearchResults} />
+      <SearchStack.Screen name="CategoryResults" component={CategoryResults} />
       <HomeStack.Screen name="Webview" component={WebView} />
     </SearchStack.Navigator>
   );
