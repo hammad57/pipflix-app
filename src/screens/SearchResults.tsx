@@ -6,7 +6,9 @@ import React, {useEffect, useState, useRef, useCallback, useMemo} from 'react';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import {SearchStackParamList} from '../App';
 import {providerManager} from '../lib/services/ProviderManager';
-import useContentStore from '../lib/zustand/contentStore';
+import useContentStore, {
+  getSearchProviderValues,
+} from '../lib/zustand/contentStore';
 import AppText from '../components/ui/Text';
 import LoadingIndicator from '../components/ui/LoadingIndicator';
 import IconButton from '../components/ui/IconButton';
@@ -44,10 +46,30 @@ const activeFirst = (providers: ProviderExtension[]) => {
 const SearchResults = ({route, navigation}: Props): React.ReactElement => {
   const colors = useM3Colors();
   const storeProviders = useContentStore(state => state.installedProviders);
-  // Reordering providers in the drawer makes a new array with the same
-  // providers. Only a real install or removal should restart the searches.
-  const providersKey = storeProviders.map(p => p.value).sort().join('|');
-  const installedProviders = useMemo(() => storeProviders, [providersKey]);
+  const selectedProviderValues = useContentStore(
+    state => state.selectedProviderValues,
+  );
+  // Search runs only over the providers ticked in the drawer; nothing
+  // ticked yet means every installed provider. Reordering providers in
+  // the drawer makes a new array with the same providers. Only a real
+  // install, removal or tick change should restart the searches.
+  const targetProvidersKey = useMemo(
+    () =>
+      getSearchProviderValues(storeProviders, selectedProviderValues)
+        .slice()
+        .sort()
+        .join('|'),
+    [storeProviders, selectedProviderValues],
+  );
+  const targetProviders = useMemo(
+    () =>
+      storeProviders.filter(p =>
+        getSearchProviderValues(storeProviders, selectedProviderValues).includes(
+          p.value,
+        ),
+      ),
+    [targetProvidersKey],
+  );
   const [searchData, setSearchData] = useState<SearchPageData[]>([]);
   const [emptyResults, setEmptyResults] = useState<SearchPageData[]>([]);
   const [showEmptyResults, setShowEmptyResults] = useState(false);
@@ -65,13 +87,13 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
 
   const trueLoading = useMemo(
     () =>
-      installedProviders.map(item => ({
+      targetProviders.map(item => ({
         name: item.display_name,
         value: item.value,
         isLoading: true,
         error: undefined as string | undefined, // explicitly type it
       })),
-    [installedProviders],
+    [targetProviders],
   );
 
   const [loading, setLoading] = useState(trueLoading);
@@ -155,17 +177,17 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
       updateLoading(i.value, {isLoading: true, error: undefined}),
     );
     searchProviders(
-      installedProviders.filter(p => values.has(p.value)),
+      targetProviders.filter(p => values.has(p.value)),
       signal,
     );
-  }, [failed, installedProviders, searchProviders, updateLoading]);
+  }, [failed, targetProviders, searchProviders, updateLoading]);
 
   // One chip per provider: name + result count (or no results / failed),
   // so the user can see every provider was searched. Tapping a failed chip
   // retries just that provider.
   const providerStatuses: ProviderStatus[] = useMemo(
     () =>
-      installedProviders.map(provider => {
+      targetProviders.map(provider => {
         const load = loading.find(i => i.value === provider.value);
         const found = searchData.find(
           i => i.providerValue === provider.value,
@@ -201,19 +223,19 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
           state: 'loading' as const,
         };
       }),
-    [installedProviders, loading, searchData, emptyResults],
+    [targetProviders, loading, searchData, emptyResults],
   );
 
   const retryProvider = useCallback(
     (value: string) => {
       const signal = abortController.current?.signal;
       if (!signal) return;
-      const provider = installedProviders.find(p => p.value === value);
+      const provider = targetProviders.find(p => p.value === value);
       if (!provider) return;
       updateLoading(value, {isLoading: true, error: undefined});
       searchProviders([provider], signal);
     },
-    [installedProviders, searchProviders, updateLoading],
+    [targetProviders, searchProviders, updateLoading],
   );
 
   useEffect(() => {
@@ -234,7 +256,7 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
     setShowEmptyResults(false);
     setLoading(trueLoading);
 
-    searchProviders(installedProviders, signal);
+    searchProviders(targetProviders, signal);
 
     return () => {
       // Cleanup function: abort any ongoing API requests
@@ -243,7 +265,7 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
         abortController.current = null;
       }
     };
-  }, [route.params.filter, installedProviders]);
+  }, [route.params.filter, targetProviders]);
 
   const renderSlider = useCallback(
     (

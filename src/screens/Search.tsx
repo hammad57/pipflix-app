@@ -384,7 +384,7 @@ const Search = () => {
         <AppText
           role="bodyLarge"
           style={{color: colors.onSurfaceVariant, marginBottom: 18}}>
-          Search across all providers
+          Search across ticked providers
         </AppText>
         <View className="flex-row items-center space-x-3 mb-3">
           <View className="flex-1">
