@@ -103,13 +103,21 @@ export const checkForUpdate = async (
   setUpdateLoading(true);
   try {
     const res = await fetch(
-      'https://api.github.com/repos/vega-org/vega-app/releases/latest',
+      'https://api.github.com/repos/hammad57/vega-app/releases/latest',
     );
     if (res.status === 403 || res.status === 429) {
       ToastAndroid.show(
         'GitHub API rate limit exceeded. Please wait a few minutes before trying again.',
         ToastAndroid.LONG,
       );
+      setUpdateLoading(false);
+      return;
+    }
+    if (res.status === 404) {
+      // This fork has no GitHub release published yet — that is not an
+      // error, it just means there is no update. Stay silent (in
+      // particular the automatic check on startup must not toast).
+      console.log('[update] No release published yet for hammad57/vega-app');
       setUpdateLoading(false);
       return;
     }
