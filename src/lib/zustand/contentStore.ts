@@ -11,6 +11,11 @@ const storage = new MMKVLoader().initialize();
 export interface Content {
   provider: ProviderExtension;
   setProvider: (type: ProviderExtension) => void;
+  // Providers ticked in the provider drawer. Search runs only over these.
+  // null = never chosen yet, which means every installed provider.
+  selectedProviderValues: string[] | null;
+  toggleSelectedProvider: (value: string) => void;
+  selectAllProviders: () => void;
   // Extension-based provider management
   installedProviders: ProviderExtension[];
   availableProviders: ProviderExtension[];
@@ -44,6 +49,25 @@ const useContentStore = create<Content>()(
 
       setProvider: (provider: ProviderExtension) => set({provider}),
 
+      selectedProviderValues: null,
+
+      toggleSelectedProvider: (value: string) =>
+        set(state => {
+          // Resolve the effective set first: null means "all installed".
+          const effective =
+            state.selectedProviderValues ??
+            state.installedProviders.map(p => p.value);
+          const next = effective.includes(value)
+            ? effective.filter(v => v !== value)
+            : [...effective, value];
+          return {selectedProviderValues: next};
+        }),
+
+      selectAllProviders: () =>
+        set(state => ({
+          selectedProviderValues: state.installedProviders.map(p => p.value),
+        })),
+
       // Kept in the order the user dragged them to in the provider drawer.
       setInstalledProviders: (providers: ProviderExtension[]) =>
         set({
@@ -64,6 +88,7 @@ const useContentStore = create<Content>()(
       storage: createJSONStorage(() => storage as any), // Only persist certain fields
       partialize: state => ({
         provider: state.provider,
+        selectedProviderValues: state.selectedProviderValues,
         activeExtensionProvider: state.activeExtensionProvider,
       }),
     },
@@ -71,3 +96,17 @@ const useContentStore = create<Content>()(
 );
 
 export default useContentStore;
+
+/**
+ * Provider values a search runs over: the ticked ones. null (never chosen)
+ * means every installed provider; values of uninstalled providers are
+ * ignored. Returns [] only when the user unticked every provider.
+ */
+export const getSearchProviderValues = (
+  installed: ProviderExtension[],
+  selected: string[] | null,
+): string[] => {
+  if (selected === null) return installed.map(p => p.value);
+  const wanted = new Set(selected);
+  return installed.filter(p => wanted.has(p.value)).map(p => p.value);
+};
