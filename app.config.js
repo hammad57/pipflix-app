@@ -146,6 +146,7 @@ module.exports = () => {
   return {
     expo: {
       name: 'Vega',
+      owner: 'nadanprindas-team',
       scheme: [APP_SCHEME, 'vega-cast'],
       displayName: 'Vega',
       jsEngine: 'hermes',
@@ -153,7 +154,7 @@ module.exports = () => {
       autolinking: {exclude: ['expo-splash-screen']},
       plugins,
       slug: 'vega',
-      version: '5.3.3',
+      version: '5.3.4',
       userInterfaceStyle: 'dark',
       experiments: {
         reactCompiler: true,
@@ -163,7 +164,7 @@ module.exports = () => {
           ? {googleServicesFile: androidGoogleServicesFile}
           : {}),
         package: PACKAGE_NAME,
-        versionCode: 218,
+        versionCode: 219,
         permissions: [
           'FOREGROUND_SERVICE',
           'FOREGROUND_SERVICE_DATA_SYNC',
@@ -219,7 +220,7 @@ module.exports = () => {
           process.env.VEGA_CAST_ICE_SERVERS || '[]',
         ),
         eas: {
-          projectId: '40d98354-d3c8-4616-ab2e-70d9c297091f',
+          projectId: '1edbc23c-32f1-4f4c-9973-e816ec174c5d',
         },
         hasFirebase: HAS_FIREBASE,
         isPlayStore: IS_PLAYSTORE,
