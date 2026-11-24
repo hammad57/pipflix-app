@@ -60,6 +60,8 @@ export interface Stream {
   link: string;
   type: string;
   quality?: '360' | '480' | '720' | '1080' | '2160' | string;
+  /** Variant playlist URL to download instead of the best quality (HLS). */
+  preferredVariantUrl?: string;
   tag?: string;
   tags?: string[];
   subtitles?: TextTracks;
