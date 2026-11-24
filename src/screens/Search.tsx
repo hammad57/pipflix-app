@@ -1,4 +1,4 @@
-import {View, FlatList, Keyboard} from 'react-native';
+import {View, FlatList, Keyboard, ScrollView} from 'react-native';
 import React, {useState, useEffect, useCallback, memo, useRef} from 'react';
 import {useNavigation} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
@@ -18,6 +18,8 @@ import IconButton from '../components/ui/IconButton';
 import AppText from '../components/ui/Text';
 import SearchField, {type SearchFieldRef} from '../components/ui/SearchField';
 import {useM3Colors} from '../theme/M3PaletteContext';
+import useContentStore from '../lib/zustand/contentStore';
+import {getAllGenres, type GenreChoice} from '../lib/search/getAllGenres';
 import {TVFocusable, TVFocusGuide} from '../components/tv';
 import {isTV} from '../lib/tv';
 
@@ -109,6 +111,46 @@ const Search = () => {
     MMKV.getArray<string>('searchHistory') || [],
   );
   const [searchResults, setSearchResults] = useState<OMDBResult[]>([]);
+  // Categories from every installed provider (18+ first), fetched once.
+  const [genres, setGenres] = useState<GenreChoice[]>([]);
+  const [genresLoading, setGenresLoading] = useState(true);
+  const installedProviders = useContentStore(
+    state => state.installedProviders,
+  );
+  const providersKey = installedProviders
+    .map(p => p.value)
+    .sort()
+    .join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+    getAllGenres(useContentStore.getState().installedProviders)
+      .then(choices => {
+        if (!cancelled) {
+          setGenres(choices);
+          setGenresLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGenresLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [providersKey]);
+
+  const openCategory = useCallback(
+    (genre: GenreChoice) => {
+      navigation.navigate('CategoryResults', {
+        title: genre.title,
+        entries: genre.providers,
+        searchQuery: genre.searchQuery,
+      });
+    },
+    [navigation],
+  );
   const searchFieldRef = useRef<SearchFieldRef>(null);
   const focusAfterTabResetRef = useRef(false);
   const focusAfterHistoryDeleteRef = useRef(false);
@@ -370,6 +412,43 @@ const Search = () => {
             />
           )}
         </View>
+        {(genresLoading || genres.length > 0) && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{gap: 8, paddingRight: 16, paddingBottom: 4}}>
+            {genresLoading ? (
+              <AppText
+                role="bodySmall"
+                style={{color: colors.onSurfaceVariant}}>
+                Loading categories…
+              </AppText>
+            ) : (
+              genres.map(genre => (
+                <TVFocusable
+                  key={genre.title}
+                  onPress={() => openCategory(genre)}
+                  borderRadius={16}
+                  focusScale={1}
+                  showFocusBorder={true}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Browse ${genre.title}`}
+                  style={{
+                    backgroundColor: colors.surfaceContainerHigh,
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                  }}>
+                  <AppText
+                    role="labelLarge"
+                    style={{color: colors.onSurface}}>
+                    {genre.title}
+                  </AppText>
+                </TVFocusable>
+              ))
+            )}
+          </ScrollView>
+        )}
       </HeaderContainer>
 
       {/* Search Content */}

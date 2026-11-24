@@ -15,6 +15,10 @@ import {TVFocusGuide, TVFocusable} from '../components/tv';
 import {isTV} from '../lib/tv';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import {runProviderSearches} from '../lib/search/runProviderSearches';
+import {
+  ProviderStatusStrip,
+  type ProviderStatus,
+} from '../components/search/ProviderStatusStrip';
 import type {ProviderExtension} from '../lib/storage/extensionStorage';
 
 type Props = NativeStackScreenProps<SearchStackParamList, 'SearchResults'>;
@@ -156,6 +160,62 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
     );
   }, [failed, installedProviders, searchProviders, updateLoading]);
 
+  // One chip per provider: name + result count (or no results / failed),
+  // so the user can see every provider was searched. Tapping a failed chip
+  // retries just that provider.
+  const providerStatuses: ProviderStatus[] = useMemo(
+    () =>
+      installedProviders.map(provider => {
+        const load = loading.find(i => i.value === provider.value);
+        const found = searchData.find(
+          i => i.providerValue === provider.value,
+        );
+        const empty = emptyResults.find(
+          i => i.providerValue === provider.value,
+        );
+        if (load?.error) {
+          return {
+            value: provider.value,
+            displayName: provider.display_name,
+            state: 'failed' as const,
+          };
+        }
+        if (found) {
+          return {
+            value: provider.value,
+            displayName: provider.display_name,
+            state: 'results' as const,
+            count: found.Posts.length,
+          };
+        }
+        if (empty) {
+          return {
+            value: provider.value,
+            displayName: provider.display_name,
+            state: 'empty' as const,
+          };
+        }
+        return {
+          value: provider.value,
+          displayName: provider.display_name,
+          state: 'loading' as const,
+        };
+      }),
+    [installedProviders, loading, searchData, emptyResults],
+  );
+
+  const retryProvider = useCallback(
+    (value: string) => {
+      const signal = abortController.current?.signal;
+      if (!signal) return;
+      const provider = installedProviders.find(p => p.value === value);
+      if (!provider) return;
+      updateLoading(value, {isLoading: true, error: undefined});
+      searchProviders([provider], signal);
+    },
+    [installedProviders, searchProviders, updateLoading],
+  );
+
   useEffect(() => {
     // Clean up previous controller if exists
     if (abortController.current) {
@@ -269,6 +329,11 @@ const SearchResults = ({route, navigation}: Props): React.ReactElement => {
             </View>
           )}
         </View>
+
+        <ProviderStatusStrip
+          statuses={providerStatuses}
+          onRetry={retryProvider}
+        />
 
         {isTV && (
           <View style={styles.tvEditRow}>
