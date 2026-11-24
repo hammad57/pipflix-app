@@ -82,9 +82,12 @@ const Home = ({}: Props) => {
 
   const provider = useContentStore(state => state.provider);
   const pendingProvider = React.useRef<ProviderExtension | null>(null);
+  // The drawer no longer closes on tap: tapping a row ticks it for
+  // search, and the drawer stays open so several providers can be
+  // ticked. The last ticked provider becomes the home provider when
+  // the drawer closes (see finishDrawerTransition).
   const selectProvider = useCallback((item: ProviderExtension) => {
     pendingProvider.current = item;
-    setIsDrawerOpen(false);
   }, []);
   const finishDrawerTransition = useCallback((closing: boolean) => {
     endUIInteraction('home-drawer');
