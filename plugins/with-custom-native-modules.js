@@ -10,7 +10,7 @@ const {
 
 function withCustomNativeModules(config) {
   config = withProjectBuildGradle(config, cfg => {
-    const frescoMarker = '// Vega: Fresco image reference lifetime fix (issue #637).';
+    const frescoMarker = '// Pipflix: Fresco image reference lifetime fix (issue #637).';
     if (!cfg.modResults.contents.includes(frescoMarker)) {
       // RN 0.86 still selects 3.6.0. Fresco 3.7.0 includes upstream #2839:
       // read image info before drawable callbacks can close its reference.
@@ -29,7 +29,7 @@ allprojects {
 }
 `;
     }
-    const marker = '// Vega: align Media3 with react-native-video and its FFmpeg decoder.';
+    const marker = '// Pipflix: align Media3 with react-native-video and its FFmpeg decoder.';
     if (!cfg.modResults.contents.includes(marker)) {
       cfg.modResults.contents += `
 ${marker}
@@ -246,7 +246,7 @@ allprojects {
     // Keep pre-existing native projects aligned with the source-built JNI API.
     contents = contents.replace(/dev\.ffmpegkit-maintained:ffmpeg-kit-https:[^'"\s]+/g,
       'dev.ffmpegkit-maintained:ffmpeg-kit-https:8.1.9');
-    const armv7Guard = '// Vega: require complete ARMv7 FFmpegKit in release builds';
+    const armv7Guard = '// Pipflix: require complete ARMv7 FFmpegKit in release builds';
     if (!contents.includes(armv7Guard)) contents += `
 ${armv7Guard}
 def verifyFfmpegArmv7 = tasks.register('verifyFfmpegArmv7') {
@@ -291,7 +291,7 @@ tasks.configureEach { task ->
       if (!app.service) app.service = [];
       const serviceName = '.RemoteDeliveryService';
       const exists = app.service.some(
-        s => s.$ && (s.$['android:name'] === serviceName || s.$['android:name'] === 'com.vega.RemoteDeliveryService'),
+        s => s.$ && (s.$['android:name'] === serviceName || s.$['android:name'] === 'com.pipflix.RemoteDeliveryService'),
       );
       if (!exists) {
         app.service.push({
@@ -304,7 +304,7 @@ tasks.configureEach { task ->
         });
       }
       const deliveryService = app.service.find(
-        s => s.$ && (s.$['android:name'] === serviceName || s.$['android:name'] === 'com.vega.RemoteDeliveryService'),
+        s => s.$ && (s.$['android:name'] === serviceName || s.$['android:name'] === 'com.pipflix.RemoteDeliveryService'),
       );
       if (deliveryService) deliveryService.$['android:stopWithTask'] = 'false';
     }
