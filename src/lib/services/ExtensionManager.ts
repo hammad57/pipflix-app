@@ -96,19 +96,140 @@ export class ExtensionManager {
    * Fresh installs ship with the Nadan-Prinda provider source as the
    * default, so the provider list loads without the user having to type a
    * source code first. Entering "Nadan_Prinda" in the source box resolves
-   * to the same source. Never points at any other author's source.
+   * to the same source (underscores in a typed name are normalized to
+   * hyphens, because GitHub names cannot contain underscores). Never
+   * points at any other author's source.
    */
   private ensureDefaultProviderSource(): void {
     if (extensionStorage.getProviderSources().length > 0) {
       return;
     }
     try {
-      const source = createProviderSource('Nadan_Prinda');
+      const source = createProviderSource('Nadan-Prinda');
       extensionStorage.addProviderSources(source.author, source.url);
       extensionStorage.setDefaultProviderSource(source.author);
-      console.log('Added default provider source: Nadan_Prinda');
+      console.log('Added default provider source: Nadan-Prinda');
     } catch (error) {
       console.warn('Failed to add default provider source:', error);
+    }
+  }
+
+  /**
+   * 1.0.0 shipped a broken default source, "Nadan_Prinda" (underscore).
+   * GitHub names cannot contain underscores, so its manifest URL 404s and
+   * the Providers screen stays empty. New input is normalized (see
+   * helpers.ts), but phones that already stored the broken source need a
+   * one-time migration to the hyphen form "Nadan-Prinda". Idempotent:
+   * after the first run no stored raw.githubusercontent.com source has an
+   * underscore author, so later runs change nothing.
+   */
+  private migrateUnderscoreGithubSources(): void {
+    try {
+      const sources = extensionStorage.getProviderSources();
+      const broken = sources.filter(
+        s =>
+          s.author.includes('_') &&
+          s.url.startsWith('https://raw.githubusercontent.com/'),
+      );
+      if (broken.length === 0) {
+        return;
+      }
+
+      const defaultAuthor = extensionStorage.getProviderSource()?.author;
+
+      for (const oldSource of broken) {
+        let corrected: ProviderSource;
+        try {
+          corrected = createProviderSource(oldSource.url);
+        } catch (error) {
+          console.warn(
+            `Skipping migration of provider source ${oldSource.author}:`,
+            error,
+          );
+          continue;
+        }
+        if (corrected.author === oldSource.author) {
+          continue;
+        }
+
+        // Add the corrected source first, so the list is never empty and
+        // the default is only moved once the replacement exists.
+        extensionStorage.addProviderSources(
+          corrected.author,
+          corrected.url,
+          corrected.manifestUrl,
+        );
+        extensionStorage.removeProviderSource(oldSource.author);
+        if (defaultAuthor === oldSource.author) {
+          extensionStorage.setDefaultProviderSource(corrected.author);
+        }
+
+        // Installed providers still point at the old author/url — remap
+        // them before anything looks them up under the broken source.
+        // If the same provider is already installed under the new author,
+        // the old-author copy is dropped instead of duplicated.
+        const installed = extensionStorage.getInstalledProviders();
+        const alreadyInstalled = new Set(
+          installed
+            .filter(p => p.source?.author === corrected.author)
+            .map(p => p.value),
+        );
+        const migratedInstalled = installed
+          .filter(
+            p =>
+              p.source?.author !== oldSource.author ||
+              !alreadyInstalled.has(p.value),
+          )
+          .map(p =>
+            p.source?.author === oldSource.author
+              ? {
+                  ...p,
+                  source: {author: corrected.author, url: corrected.url},
+                }
+              : p,
+          );
+        extensionStorage.setInstalledProviders(migratedInstalled);
+
+        // Move the manifest cache and the available-provider list to the
+        // new key, remapping each entry's source as well. An expired
+        // cache is dropped instead — initialize() re-fetches it from the
+        // corrected source.
+        const cached = extensionStorage.getManifestCache(oldSource.author);
+        if (
+          cached.length > 0 &&
+          !extensionStorage.isManifestCacheExpired(oldSource.author)
+        ) {
+          extensionStorage.setManifestCache(
+            cached.map(p => ({
+              ...p,
+              source: {author: corrected.author, url: corrected.url},
+            })),
+            corrected.author,
+          );
+        }
+        // The old keys are never read again, but clear them so no stale
+        // entries survive under the broken author.
+        extensionStorage.setManifestCache([], oldSource.author);
+        const available = extensionStorage.getAvailableProviders(
+          oldSource.author,
+        );
+        if (available.length > 0) {
+          extensionStorage.setAvailableProviders(
+            corrected.author,
+            available.map(p => ({
+              ...p,
+              source: {author: corrected.author, url: corrected.url},
+            })),
+          );
+        }
+        extensionStorage.setAvailableProviders(oldSource.author, []);
+
+        console.log(
+          `Migrated provider source ${oldSource.author} to ${corrected.author}`,
+        );
+      }
+    } catch (error) {
+      console.warn('Failed to migrate underscore provider sources:', error);
     }
   }
 
@@ -572,6 +693,7 @@ export class ExtensionManager {
   async initialize(): Promise<void> {
     try {
       this.migrateLegacyCustomProviderSource();
+      this.migrateUnderscoreGithubSources();
       this.ensureDefaultProviderSource();
 
       // Load providers from cache
