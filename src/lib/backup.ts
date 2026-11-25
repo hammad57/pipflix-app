@@ -117,7 +117,7 @@ type SettingValue = boolean | string | number | string[];
 
 export interface VegaBackup {
   library?: LibraryBackup;
-  app: 'vega';
+  app: 'pipflix';
   version: number;
   createdAt: string;
   settings?: Record<string, SettingValue>;
@@ -330,7 +330,7 @@ export function createBackup(selection: BackupSelection = ALL_SECTIONS): VegaBac
 
   return {
     ...(selection.library ? {library: createLibraryBackup()} : {}),
-    app: 'vega',
+    app: 'pipflix',
     version: BACKUP_VERSION,
     createdAt: new Date().toISOString(),
     ...(selection.settings ? {settings} : {}),
@@ -358,13 +358,13 @@ export const parseBackup = (text: string): VegaBackup => {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error('This file is not a Vega backup');
+    throw new Error('This file is not a Pipflix backup');
   }
-  if (data?.app !== 'vega' || typeof data.version !== 'number') {
-    throw new Error('This file is not a Vega backup');
+  if (data?.app !== 'pipflix' || typeof data.version !== 'number') {
+    throw new Error('This file is not a Pipflix backup');
   }
   if (data.version > BACKUP_VERSION) {
-    throw new Error('This backup was made by a newer version of Vega');
+    throw new Error('This backup was made by a newer version of Pipflix');
   }
   const {settings, providers, library, history, progress} = data;
   const settingsValid = settings !== undefined && settings !== null &&
@@ -436,7 +436,7 @@ export const restoreBackup = (backup: VegaBackup): void => {
 };
 
 const getBackupFileName = () =>
-  `vega-backup-${new Date().toISOString().slice(0, 10)}`;
+  `pipflix-backup-${new Date().toISOString().slice(0, 10)}`;
 
 /**
  * Saves a single backup document without requesting access to its whole folder.
