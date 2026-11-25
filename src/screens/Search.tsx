@@ -1,5 +1,5 @@
 import {View, FlatList, Keyboard, ScrollView} from 'react-native';
-import React, {useState, useEffect, useCallback, memo, useRef} from 'react';
+import React, {useState, useEffect, useCallback, memo, useRef, useMemo} from 'react';
 import {useNavigation} from '@react-navigation/native';
 import type {BottomTabNavigationProp} from '@react-navigation/bottom-tabs';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -114,6 +114,23 @@ const Search = () => {
   // Categories from every installed provider (18+ first), fetched once.
   const [genres, setGenres] = useState<GenreChoice[]>([]);
   const [genresLoading, setGenresLoading] = useState(true);
+  // Filter the category list by content type. Genre titles are the only
+  // reliable movie/show signal: provider posts carry no movie/series type.
+  const [genreTypeFilter, setGenreTypeFilter] = useState<
+    'all' | 'movie' | 'show'
+  >('all');
+  const filteredGenres = useMemo(() => {
+    if (genreTypeFilter === 'all') {
+      return genres;
+    }
+    const words =
+      genreTypeFilter === 'movie'
+        ? ['movie', 'film', 'cinema', 'bollywood', 'hollywood']
+        : ['show', 'series', 'tv', 'drama', 'season', 'episode'];
+    return genres.filter(genre =>
+      words.some(word => genre.title.toLowerCase().includes(word)),
+    );
+  }, [genres, genreTypeFilter]);
   const installedProviders = useContentStore(
     state => state.installedProviders,
   );
@@ -413,18 +430,72 @@ const Search = () => {
           )}
         </View>
         {(genresLoading || genres.length > 0) && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{gap: 8, paddingRight: 16, paddingBottom: 4}}>
-            {genresLoading ? (
-              <AppText
-                role="bodySmall"
-                style={{color: colors.onSurfaceVariant}}>
-                Loading categories…
-              </AppText>
-            ) : (
-              genres.map(genre => (
+          <>
+            <View
+              style={{
+                flexDirection: 'row',
+                gap: 8,
+                paddingBottom: 8,
+              }}>
+              {(
+                [
+                  {key: 'all', label: 'All'},
+                  {key: 'movie', label: 'Movies'},
+                  {key: 'show', label: 'Shows'},
+                ] as const
+              ).map(option => {
+                const selected = genreTypeFilter === option.key;
+                return (
+                  <TVFocusable
+                    key={option.key}
+                    onPress={() => setGenreTypeFilter(option.key)}
+                    borderRadius={16}
+                    focusScale={1}
+                    showFocusBorder={true}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Show ${option.label} categories`}
+                    accessibilityState={{selected}}
+                    style={{
+                      backgroundColor: selected
+                        ? colors.primary
+                        : colors.surfaceContainerHigh,
+                      borderRadius: 16,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                    }}>
+                    <AppText
+                      role="labelLarge"
+                      style={{
+                        color: selected
+                          ? colors.onPrimary
+                          : colors.onSurface,
+                      }}>
+                      {option.label}
+                    </AppText>
+                  </TVFocusable>
+                );
+              })}
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{gap: 8, paddingRight: 16, paddingBottom: 4}}>
+              {genresLoading ? (
+                <AppText
+                  role="bodySmall"
+                  style={{color: colors.onSurfaceVariant}}>
+                  Loading categories…
+                </AppText>
+              ) : filteredGenres.length === 0 ? (
+                <AppText
+                  role="bodySmall"
+                  style={{color: colors.onSurfaceVariant}}>
+                  {genreTypeFilter === 'movie'
+                    ? 'No movie categories from installed providers.'
+                    : 'No show categories from installed providers.'}
+                </AppText>
+              ) : (
+                filteredGenres.map(genre => (
                 <TVFocusable
                   key={genre.title}
                   onPress={() => openCategory(genre)}
@@ -448,6 +519,7 @@ const Search = () => {
               ))
             )}
           </ScrollView>
+          </>
         )}
       </HeaderContainer>
 

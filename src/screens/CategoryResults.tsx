@@ -1,4 +1,4 @@
-import {Pressable, ScrollView, View} from 'react-native';
+import {Pressable, ScrollView, TextInput, View} from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Slider from '../components/Slider';
 import ScreenSafeArea from '../components/ui/ScreenSafeArea';
@@ -15,6 +15,7 @@ import {TVFocusGuide, TVFocusable} from '../components/tv';
 import {isTV} from '../lib/tv';
 import {useM3Colors} from '../theme/M3PaletteContext';
 import {runProviderSearches} from '../lib/search/runProviderSearches';
+import {getAllGenres, type GenreChoice} from '../lib/search/getAllGenres';
 import type {Post} from '../lib/providers/types';
 import type {GenreProviderEntry} from '../lib/search/getAllGenres';
 import {
@@ -60,6 +61,13 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
   const [searchData, setSearchData] = useState<CategoryPageData[]>([]);
   const [emptyResults, setEmptyResults] = useState<CategoryPageData[]>([]);
   const [showEmptyResults, setShowEmptyResults] = useState(false);
+  // Filter the loaded titles by name, and switch to another genre
+  // without going back. Genre titles are the providers' own categories
+  // (movies and shows are separate categories, e.g. "Blockbuster Movies"
+  // vs "US TV Shows Dubbed in Hindi"), because provider posts carry no
+  // movie/series type of their own.
+  const [titleFilter, setTitleFilter] = useState('');
+  const [allGenres, setAllGenres] = useState<GenreChoice[]>([]);
   const [loading, setLoading] = useState(
     providers.map(item => ({
       name: item.displayName,
@@ -99,11 +107,52 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
 
   const failed = useMemo(() => loading.filter(i => i.error), [loading]);
 
+  const filteredSearchData = useMemo(() => {
+    const query = titleFilter.trim().toLowerCase();
+    if (!query) {
+      return searchData;
+    }
+    return searchData.map(item => ({
+      ...item,
+      Posts: item.Posts.filter(post =>
+        (post.title || '').toLowerCase().includes(query),
+      ),
+    }));
+  }, [searchData, titleFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAllGenres(useContentStore.getState().installedProviders)
+      .then(choices => {
+        if (!cancelled) {
+          setAllGenres(choices);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [storeProviders]);
+
+  const openGenre = useCallback(
+    (genre: GenreChoice) => {
+      if (genre.title === title && genre.searchQuery === searchQuery) {
+        return;
+      }
+      navigation.push('CategoryResults', {
+        title: genre.title,
+        entries: genre.providers,
+        searchQuery: genre.searchQuery,
+      });
+    },
+    [navigation, title, searchQuery],
+  );
+
   const statuses: ProviderStatus[] = useMemo(
     () =>
       providers.map(provider => {
         const load = loading.find(i => i.value === provider.providerValue);
-        const found = searchData.find(
+        const found = filteredSearchData.find(
           i => i.providerValue === provider.providerValue,
         );
         const empty = emptyResults.find(
@@ -116,7 +165,7 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
             state: 'failed' as const,
           };
         }
-        if (found) {
+        if (found && found.Posts.length > 0) {
           return {
             value: provider.providerValue,
             displayName: provider.displayName,
@@ -124,7 +173,7 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
             count: found.Posts.length,
           };
         }
-        if (empty) {
+        if (empty || found) {
           return {
             value: provider.providerValue,
             displayName: provider.displayName,
@@ -137,7 +186,7 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
           state: 'loading' as const,
         };
       }),
-    [providers, loading, searchData, emptyResults],
+    [providers, loading, filteredSearchData, emptyResults],
   );
 
   const fetchProviders = useCallback(
@@ -262,9 +311,10 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
       const loadingState = loading.find(i => i.value === item.value);
       const posts = isEmptyResult
         ? emptyResults.find(i => i.providerValue === item.value)?.Posts || []
-        : searchData.find(i => i.providerValue === item.value)?.Posts || [];
+        : filteredSearchData.find(i => i.providerValue === item.value)
+            ?.Posts || [];
       const filter =
-        searchData.find(i => i.providerValue === item.value)?.filter ||
+        filteredSearchData.find(i => i.providerValue === item.value)?.filter ||
         emptyResults.find(i => i.providerValue === item.value)?.filter ||
         searchQuery ||
         '';
@@ -281,7 +331,7 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
         />
       );
     },
-    [loading, searchData, emptyResults, searchQuery],
+    [loading, filteredSearchData, emptyResults, searchQuery],
   );
 
   const searchSliders = useMemo(
@@ -349,6 +399,69 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
 
         <ProviderStatusStrip statuses={statuses} onRetry={retryProvider} />
 
+        {allGenres.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              gap: 8,
+              paddingHorizontal: 16,
+              paddingTop: 12,
+            }}>
+            {allGenres.map(genre => {
+              const selected =
+                genre.title === title &&
+                genre.searchQuery === searchQuery;
+              return (
+                <TVFocusable
+                  key={genre.title}
+                  onPress={() => openGenre(genre)}
+                  borderRadius={16}
+                  focusScale={1}
+                  showFocusBorder={true}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Browse ${genre.title}`}
+                  accessibilityState={{selected}}
+                  style={{
+                    backgroundColor: selected
+                      ? colors.primary
+                      : colors.surfaceContainerHigh,
+                    borderRadius: 16,
+                    paddingHorizontal: 14,
+                    paddingVertical: 8,
+                  }}>
+                  <AppText
+                    role="labelLarge"
+                    style={{
+                      color: selected ? colors.onPrimary : colors.onSurface,
+                    }}>
+                    {genre.title}
+                  </AppText>
+                </TVFocusable>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        <View style={{paddingHorizontal: 16, paddingTop: 12}}>
+          <TextInput
+            value={titleFilter}
+            onChangeText={setTitleFilter}
+            placeholder="Filter titles in this category…"
+            placeholderTextColor={colors.onSurfaceVariant}
+            returnKeyType="search"
+            style={{
+              backgroundColor: colors.surfaceContainerHigh,
+              color: colors.onSurface,
+              borderRadius: 16,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              fontSize: 15,
+            }}
+            accessibilityLabel="Filter titles in this category"
+          />
+        </View>
+
         {isAllLoaded && failed.length > 0 && (
           <View className="px-4 mt-4">
             <Button variant="tonal" compact onPress={retryFailed}>
@@ -400,7 +513,7 @@ const CategoryResults = ({route, navigation}: Props): React.ReactElement => {
         </TVFocusGuide>
 
         {isAllLoaded &&
-          searchData.every(d => !d.Posts || d.Posts.length === 0) && (
+          filteredSearchData.every(d => !d.Posts || d.Posts.length === 0) && (
             <View className="items-center justify-center py-20 px-8">
               <AppText
                 role="titleLargeEmphasized"
