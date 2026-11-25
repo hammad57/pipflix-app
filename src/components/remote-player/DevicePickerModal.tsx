@@ -28,7 +28,6 @@ interface DevicePickerModalProps {
   /** Ends casting and leaves the remote screen. */
   onStopCasting: () => void;
 }
-const castPageUrl='https://cast.vega-app.in/';
 
 export const DevicePickerModal: React.FC<DevicePickerModalProps> = ({
   visible,
@@ -47,7 +46,6 @@ export const DevicePickerModal: React.FC<DevicePickerModalProps> = ({
   const [connectError, setConnectError] = useState<string | undefined>();
   const [scannerOpen,setScannerOpen]=useState(false);
   const [showCastInfo,setShowCastInfo]=useState(false);
-  const [linkCopied,setLinkCopied]=useState(false);
   const [discoveringVega,setDiscoveringVega]=useState(false);
   const [vegaReceivers,setVegaReceivers]=useState(vegaCastService.getReceivers());
   const [pairingState,setPairingState]=useState(vegaCastService.getPairingState());
@@ -124,7 +122,7 @@ export const DevicePickerModal: React.FC<DevicePickerModalProps> = ({
     if(connectedDevice?.id===device.id&&connectedDevice.type==='vega-cast'){onClose();return;}
     setConnectingId(device.id);setConnectError(undefined);
     try{const receiverId=device.paired?device.id:await vegaCastService.pair(device);await remotePlaybackManager.connectVegaCast(receiverId);onClose();}
-    catch(error){if(error instanceof Error&&error.message==='Pairing canceled')return;setConnectError(error instanceof Error?error.message:'Unable to connect to Vega Cast');}
+    catch(error){if(error instanceof Error&&error.message==='Pairing canceled')return;setConnectError(error instanceof Error?error.message:'Unable to connect to Pipflix Cast');}
     finally{setConnectingId(null);}
   };
   const handlePair=async(invitation:string)=>{
@@ -179,12 +177,12 @@ export const DevicePickerModal: React.FC<DevicePickerModalProps> = ({
         </AppText>
       )}
 
-      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingRight:8}}><RemoteSheetSectionLabel text="Vega Cast" /><View style={{flexDirection:'row',alignItems:'center',gap:12}}><IconButton icon="qrcode-scan" label="Scan Vega Cast QR code" contentColor={colors.onSurfaceVariant} disabled={pairingState.pairing} onPress={()=>setScannerOpen(true)}/><IconButton icon="information-outline" label="Vega Cast connection info" contentColor={colors.onSurfaceVariant} onPress={()=>{setLinkCopied(false);setShowCastInfo(true);}}/></View></View>
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingRight:8}}><RemoteSheetSectionLabel text="Pipflix Cast" /><View style={{flexDirection:'row',alignItems:'center',gap:12}}><IconButton icon="qrcode-scan" label="Scan Pipflix Cast QR code" contentColor={colors.onSurfaceVariant} disabled={pairingState.pairing} onPress={()=>setScannerOpen(true)}/><IconButton icon="information-outline" label="Pipflix Cast connection info" contentColor={colors.onSurfaceVariant} onPress={()=>{setShowCastInfo(true);}}/></View></View>
       {vegaReceivers.map(device=><View key={device.id} style={{flexDirection:'row',alignItems:'center'}}><View style={{flex:1,minWidth:0}}><RemoteSheetOption icon="television-play" title={device.name}
         supportingText={connectingId===device.id?(pairingState.pairing?'Confirm the number on your receiver…':'Connecting…'):device.paired?'Paired':'Available'}
         selected={connectedDevice?.type==='vega-cast'&&connectedDevice.id===device.id}
         onPress={()=>{if(!pairingState.pairing)void handleSelectVega(device);}}/></View>{device.paired&&!(connectedDevice?.type==='vega-cast'&&connectedDevice.id===device.id)&&<IconButton icon="delete-outline" label={`Forget ${device.name}`} contentColor={colors.error} disabled={pairingState.pairing||connectingId===device.id} onPress={()=>Alert.alert('Forget receiver?',`Remove the saved pairing for ${device.name}? You will need to pair again. Current playback will continue.`,[{text:'Cancel',style:'cancel'},{text:'Forget',style:'destructive',onPress:()=>vegaCastService.forget(device.id)}])}/>}</View>)}
-      {!vegaReceivers.length&&<RemoteSheetEmpty text={discoveringVega?'Searching for Vega Cast receivers…':'No receivers found'}/>}
+      {!vegaReceivers.length&&<RemoteSheetEmpty text={discoveringVega?'Searching for Pipflix Cast receivers…':'No receivers found'}/>}
       <View style={{paddingHorizontal:16,paddingTop:8,paddingBottom:16,gap:10}}>
         {!!pairingState.confirmation&&pairingState.pairing&&<AppText role="bodyMedium" style={{color:colors.primary}}>Confirm {pairingState.confirmation} on receiver</AppText>}
 
@@ -236,13 +234,12 @@ export const DevicePickerModal: React.FC<DevicePickerModalProps> = ({
       {visible&&scannerOpen&&<VegaCastScanner onClose={()=>setScannerOpen(false)} onScan={invitation=>{setScannerOpen(false);void handlePair(invitation);}}/>}
       <AppDialog
         visible={visible&&showCastInfo}
-        title="Vega Cast"
-        message={`Open this link on your TV or computer, then select the receiver or scan its QR code.\n\n[${castPageUrl}](${castPageUrl})`}
+        title="Pipflix Cast"
+        message={`To connect a receiver, make sure it is on the same Wi-Fi network as this device, then scan its QR code or pick it from the list.`}
         messageFormat="markdown"
         primary={colors.primary}
         onDismiss={()=>setShowCastInfo(false)}
         actions={[
-          {label:linkCopied?'Copied':'Copy link',dismissOnPress:false,onPress:()=>{Clipboard.setString(castPageUrl);setLinkCopied(true);}},
           {label:'Done',variant:'primary'},
         ]}
       />
