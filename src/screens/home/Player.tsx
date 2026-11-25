@@ -2798,6 +2798,21 @@ const Player = ({route}: Props): React.JSX.Element => {
     setSearchQuery(route.params?.primaryTitle || '');
   }, [route.params?.primaryTitle]);
 
+  // Hindi first: a stream's Hindi audio track is the preferred one when
+  // the user has not picked a language themselves. Matches the same
+  // Hindi rendition check the downloader uses (language hi/hin or a
+  // title mentioning Hindi).
+  const isHindiAudioTrack = (track: {
+    language?: string;
+    title?: string;
+  }): boolean => {
+    const language = (track.language || '').trim().toLowerCase();
+    if (language === 'hi' || language === 'hin' || language === 'hindi') {
+      return true;
+    }
+    return (track.title || '').toLowerCase().includes('hindi');
+  };
+
   // Set last selected audio and subtitle tracks
   useEffect(() => {
     const lastAudioTrack = cacheStorage.getString('lastAudioTrack') || 'auto';
@@ -2805,9 +2820,19 @@ const Player = ({route}: Props): React.JSX.Element => {
 
     if (!hasSetInitialAudioRef.current && audioTracks.length > 0) {
       hasSetInitialAudioRef.current = true;
-      const audioTrackIndex = audioTracks.findIndex(
-        track => track.language === lastAudioTrack,
-      );
+      // With no stored choice, prefer a Hindi audio track; an explicit
+      // choice the user made before (stored in lastAudioTrack) always wins.
+      let audioTrackIndex = -1;
+      if (lastAudioTrack === 'auto') {
+        audioTrackIndex = audioTracks.findIndex(track =>
+          isHindiAudioTrack(track),
+        );
+      }
+      if (audioTrackIndex === -1) {
+        audioTrackIndex = audioTracks.findIndex(
+          track => track.language === lastAudioTrack,
+        );
+      }
       if (audioTrackIndex !== -1) {
         setSelectedAudioTrack({
           type: SelectedTrackType.INDEX,
