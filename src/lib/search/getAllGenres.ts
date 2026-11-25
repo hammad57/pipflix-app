@@ -32,20 +32,31 @@ export const ADULT_GENRE: GenreChoice = {
 };
 
 /**
- * All genres declared by the installed providers, de-duplicated by title.
+ * All genres/tags declared by the installed providers, de-duplicated by title.
  * A genre that several providers offer keeps one entry per provider, so
  * browsing it lists that category from every provider that has it. Providers
  * that fail to report genres (no catalog module, bad module) are skipped.
+ *
+ * Both the provider's `genres` list AND its `catalog` list are merged:
+ * several providers (e.g. NetflixMirror) only fill `catalog` — its tags
+ * ("Only on Netflix", "Blockbuster Movies", "US TV Shows Dubbed in Hindi")
+ * would otherwise never appear in category browsing.
  */
 export const getAllGenres = async (
   providers: ProviderExtension[],
 ): Promise<GenreChoice[]> => {
   const settled = await Promise.allSettled(
     providers.map(async provider => {
-      const genres = await providerManager.getGenres({
-        providerValue: provider.value,
-      });
-      return {provider, genres: Array.isArray(genres) ? genres : []};
+      const [genres, catalog] = await Promise.all([
+        providerManager.getGenres({
+          providerValue: provider.value,
+        }),
+        providerManager.getCatalog({
+          providerValue: provider.value,
+        }),
+      ]);
+      const merged = [...(Array.isArray(genres) ? genres : []), ...(Array.isArray(catalog) ? catalog : [])];
+      return {provider, genres: merged};
     }),
   );
   const byTitle = new Map<string, GenreChoice>();
