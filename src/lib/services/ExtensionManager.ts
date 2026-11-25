@@ -92,6 +92,26 @@ export class ExtensionManager {
     return extensionStorage.getProviderSource();
   }
 
+  /**
+   * Fresh installs ship with the Nadan-Prinda provider source as the
+   * default, so the provider list loads without the user having to type a
+   * source code first. Entering "Nadan_Prinda" in the source box resolves
+   * to the same source. Never points at any other author's source.
+   */
+  private ensureDefaultProviderSource(): void {
+    if (extensionStorage.getProviderSources().length > 0) {
+      return;
+    }
+    try {
+      const source = createProviderSource('Nadan_Prinda');
+      extensionStorage.addProviderSources(source.author, source.url);
+      extensionStorage.setDefaultProviderSource(source.author);
+      console.log('Added default provider source: Nadan_Prinda');
+    } catch (error) {
+      console.warn('Failed to add default provider source:', error);
+    }
+  }
+
   private migrateLegacyCustomProviderSource(): void {
     if (extensionStorage.getProviderSources().length > 0) {
       return;
@@ -552,6 +572,7 @@ export class ExtensionManager {
   async initialize(): Promise<void> {
     try {
       this.migrateLegacyCustomProviderSource();
+      this.ensureDefaultProviderSource();
 
       // Load providers from cache
       const source = this.getActiveSource();
