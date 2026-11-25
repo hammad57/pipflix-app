@@ -41,7 +41,7 @@ export const TrailerPage: React.FC<TrailerPageProps> = ({
   const [activeTrailerIndex, setActiveTrailerIndex] = useState(0);
   const activeVideo = trailers[activeTrailerIndex] ?? trailers[0];
 
-  const youtubeOrigin = 'https://vega.app';
+  const youtubeOrigin = 'https://pipflix.app';
   const trailerUrl = activeVideo?.youtubeKey
     ? `https://www.youtube.com/embed/${encodeURIComponent(
       activeVideo.youtubeKey,
