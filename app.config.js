@@ -154,7 +154,7 @@ module.exports = () => {
       autolinking: {exclude: ['expo-splash-screen']},
       plugins,
       slug: 'pipflix',
-      version: '1.0.0',
+      version: '1.0.1',
       userInterfaceStyle: 'dark',
       experiments: {
         reactCompiler: true,
@@ -164,7 +164,7 @@ module.exports = () => {
           ? {googleServicesFile: androidGoogleServicesFile}
           : {}),
         package: PACKAGE_NAME,
-        versionCode: 1,
+        versionCode: 2,
         permissions: [
           'FOREGROUND_SERVICE',
           'FOREGROUND_SERVICE_DATA_SYNC',
