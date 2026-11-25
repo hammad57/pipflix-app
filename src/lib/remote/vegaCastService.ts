@@ -15,7 +15,10 @@ interface CastMedia {processing?:'original'|'remuxed';servers?:{id:string;name:s
 export interface VegaPairingState {invitation:string;confirmation?:string;error?:string;pairing:boolean}
 export interface VegaReceiver extends RemoteDevice {paired:boolean;serviceUrl?:string;discoveryToken?:string}
 const STORE_KEY='vega.cast.receivers.v1';
-const DEFAULT_SERVICE_URL='https://cast.vega-app.in/vega-cast/v1';
+// Pipflix runs no remote cast discovery service: discovery uses only
+// previously paired receivers and LAN discovery. An explicit custom
+// endpoint (VEGA_CAST_SERVICE_URL env) still overrides this empty default.
+const DEFAULT_SERVICE_URL = '';
 const localSource=(url:string)=>/^(file:|content:|\/)|^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/)/i.test(url);
 const mime=(type?:string)=>/m3u8|hls/i.test(type||'')?'application/vnd.apple.mpegurl':/mkv|matroska/i.test(type||'')?'video/x-matroska':'video/mp4';
 const sourceFormat=(type?:string)=>/m3u8|hls|mpegurl/i.test(type||'')?'m3u8':/mkv|matroska/i.test(type||'')?'mkv':/mp4/i.test(type||'')?'mp4':/webm/i.test(type||'')?'webm':undefined;
@@ -81,9 +84,9 @@ class VegaCastService {
   async refreshDiscovery(){
     if(this.searching)return;
     const configured=String(Constants.expoConfig?.extra?.vegaCastServiceUrl||'').trim();
-    // Older builds embedded the previous website as their default. Keep saved
-    // services and explicit custom endpoints, but discover on the current site.
-    const primary=!configured||['https://vega.8man.in/vega-cast/v1','https://vega-app.in/vega-cast/v1'].includes(configured)?DEFAULT_SERVICE_URL:configured;
+    // No remote discovery service by default: only an explicitly
+    // configured endpoint (or previously paired receivers) is used.
+    const primary = configured || DEFAULT_SERVICE_URL;
     const urls=[...new Set([primary,...this.records().map(record=>record.serviceUrl),...this.services])].filter(Boolean).slice(0,16);
     this.searching=true;this.publish();const abort=new AbortController();this.discoveryAbort=abort;const timer=setTimeout(()=>abort.abort(),5000);
     try {
