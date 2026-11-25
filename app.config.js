@@ -22,14 +22,14 @@ module.exports = () => {
   const IS_TV = process.env.EXPO_TV === '1' || process.env.APP_VARIANT === 'tv';
   const HAS_FIREBASE =
     !IS_PLAYSTORE && (hasAndroidGoogleServices || hasIosGooglePlist);
-  const PACKAGE_NAME = IS_PLAYSTORE ? 'vega.app' : 'com.vega';
-  const APP_SCHEME = IS_PLAYSTORE ? 'vegaapp' : 'com.vega';
+  const PACKAGE_NAME = 'com.pipflix';
+  const APP_SCHEME = 'pipflix';
   const plugins = [
     './plugins/with-custom-native-modules.js',
       [
         'expo-camera',
         {
-          cameraPermission: 'Allow Vega to scan receiver QR codes.',
+          cameraPermission: 'Allow Pipflix to scan receiver QR codes.',
           recordAudioAndroid: false,
         },
       ],
@@ -145,16 +145,16 @@ module.exports = () => {
   ];
   return {
     expo: {
-      name: 'Vega',
+      name: 'Pipflix',
       owner: 'nadanprindas-team',
-      scheme: [APP_SCHEME, 'vega-cast'],
-      displayName: 'Vega',
+      scheme: [APP_SCHEME, 'pipflix-cast'],
+      displayName: 'Pipflix',
       jsEngine: 'hermes',
       newArchEnabled: true,
       autolinking: {exclude: ['expo-splash-screen']},
       plugins,
-      slug: 'vega',
-      version: '5.3.5',
+      slug: 'pipflix',
+      version: '1.0.0',
       userInterfaceStyle: 'dark',
       experiments: {
         reactCompiler: true,
@@ -164,7 +164,7 @@ module.exports = () => {
           ? {googleServicesFile: androidGoogleServicesFile}
           : {}),
         package: PACKAGE_NAME,
-        versionCode: 220,
+        versionCode: 1,
         permissions: [
           'FOREGROUND_SERVICE',
           'FOREGROUND_SERVICE_DATA_SYNC',
@@ -211,16 +211,17 @@ module.exports = () => {
       },
       platforms: ['ios', 'android'],
       extra: {
-        vegaCastServiceUrl:
-          process.env.VEGA_CAST_SERVICE_URL ||
-          'https://cast.vega-app.in/vega-cast/v1',
+        // Pipflix runs no remote cast service: discovery uses only
+        // previously paired receivers and LAN discovery. Keep the env
+        // override for a self-hosted relay if one is ever configured.
+        vegaCastServiceUrl: process.env.VEGA_CAST_SERVICE_URL || '',
         // Optional STUN/TURN servers. Use short-lived TURN credentials in builds;
         // never commit a permanent relay secret. Empty means same-LAN ICE only.
         vegaCastIceServers: JSON.parse(
           process.env.VEGA_CAST_ICE_SERVERS || '[]',
         ),
         eas: {
-          projectId: '1edbc23c-32f1-4f4c-9973-e816ec174c5d',
+          projectId: '2345c0e2-cc07-4313-8d70-a259190df6a9',
         },
         hasFirebase: HAS_FIREBASE,
         isPlayStore: IS_PLAYSTORE,
