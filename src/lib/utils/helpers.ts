@@ -229,11 +229,23 @@ const URL_PARSERS = [
   parseGitlabUrl,
 ];
 
-const toProviderSource = (parsed: ParsedSource): ProviderSource => ({
-  author: buildSourceKey(parsed.host, parsed.author),
-  url: buildRawUrl(parsed),
-  isDefault: false,
-});
+const toProviderSource = (parsed: ParsedSource): ProviderSource => {
+  // GitHub usernames and organization names cannot contain underscores, so a
+  // user typing "Nadan_Prinda" means "Nadan-Prinda". Normalize here — the
+  // single choke point for short names and pasted URLs — so both spellings
+  // resolve to the identical source (same author key, same raw URL). Other
+  // hosts keep their authors exactly as given.
+  const author =
+    parsed.host === 'github'
+      ? parsed.author.replace(/_/g, '-')
+      : parsed.author;
+  const normalized: ParsedSource = {...parsed, author};
+  return {
+    author: buildSourceKey(normalized.host, normalized.author),
+    url: buildRawUrl(normalized),
+    isDefault: false,
+  };
+};
 
 /**
  * Any other HTTP or HTTPS URL: a manifest file (path ending in .json) or the folder
