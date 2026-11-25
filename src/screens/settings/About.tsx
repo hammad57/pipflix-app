@@ -103,7 +103,7 @@ export const checkForUpdate = async (
   setUpdateLoading(true);
   try {
     const res = await fetch(
-      'https://api.github.com/repos/hammad57/vega-app/releases/latest',
+      'https://api.github.com/repos/hammad57/pipflix-app/releases/latest',
     );
     if (res.status === 403 || res.status === 429) {
       ToastAndroid.show(
@@ -117,7 +117,7 @@ export const checkForUpdate = async (
       // This fork has no GitHub release published yet — that is not an
       // error, it just means there is no update. Stay silent (in
       // particular the automatic check on startup must not toast).
-      console.log('[update] No release published yet for hammad57/vega-app');
+      console.log('[update] No release published yet for hammad57/pipflix-app');
       setUpdateLoading(false);
       return;
     }
@@ -299,7 +299,7 @@ const About = ({navigation}: any) => {
             <AppText
               role="headlineLargeEmphasized"
               className="text-m3-on-background">
-              About Vega
+              About Pipflix
             </AppText>
           </View>
           <AppText role="bodyLarge" className="mt-1 text-m3-on-surface-variant">
@@ -310,7 +310,7 @@ const About = ({navigation}: any) => {
         <SettingsSection title="App">
           <SettingsRow
             title="Version"
-            description={`Vega ${Application.nativeApplicationVersion || ''}`}
+            description={`Pipflix ${Application.nativeApplicationVersion || ''}`}
             icon="information-outline"
             divider={Constants.expoConfig?.extra?.isPlayStore}
           />
@@ -330,7 +330,7 @@ const About = ({navigation}: any) => {
               />
               <SettingsSwitchRow
                 title="Check on startup"
-                description="Look for a new release when Vega opens"
+                description="Look for a new release when Pipflix opens"
                 value={autoCheckUpdate}
                 onValueChange={next => {
                   setAutoCheckUpdate(next);
