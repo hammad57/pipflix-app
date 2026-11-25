@@ -21,8 +21,8 @@ const DOWNLOAD_LOCATION_PREFIX = 'download-location:';
 
 export const getTVDefaultDownloadLocation = (): PathDownloadLocation => ({
   type: 'path',
-  path: `${RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath}/Vega Downloads`,
-  label: 'Vega app storage',
+  path: `${RNFS.ExternalDirectoryPath || RNFS.DocumentDirectoryPath}/Pipflix Downloads`,
+  label: 'Pipflix app storage',
 });
 
 export const serializeDownloadLocation = (
